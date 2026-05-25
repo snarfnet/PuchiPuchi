@@ -236,7 +236,6 @@ def update_metadata(version_id):
     attrs = {
         "description": meta["description"],
         "keywords": meta["keywords"],
-        "whatsNew": "\u521d\u56de\u30ea\u30ea\u30fc\u30b9\u3067\u3059\u3002",
         "promotionalText": meta["promotionalText"],
         "supportUrl": "https://snarfnet.github.io/app-support/",
         "marketingUrl": "https://snarfnet.github.io/app-support/",
@@ -309,26 +308,29 @@ def assign_build(version_id, build_id):
 
 def submit_for_review(app_id, version_id):
     cancel_pending_review_submissions(app_id)
-    payload = {
-        "data": {
-            "type": "reviewSubmissions",
-            "attributes": {"platform": "IOS"},
-            "relationships": {
-                "app": {"data": {"type": "apps", "id": app_id}},
-                "appStoreVersionForReview": {"data": {"type": "appStoreVersions", "id": version_id}},
-            },
-        }
-    }
+
+    legacy_payload = {"data": {"type": "appStoreVersionSubmissions", "relationships": {"appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}}}}}
+    response, body = api_json("POST", "/appStoreVersionSubmissions", json=legacy_payload)
+    if response.status_code in (200, 201):
+        print("Submitted via appStoreVersionSubmissions")
+        return
+    print(f"Legacy submit: {response.status_code} {error_text(response, 1200)}")
+
+    payload = {"data": {"type": "reviewSubmissions", "attributes": {"platform": "IOS"}, "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}}
     response, body = api_json("POST", "/reviewSubmissions", json=payload)
     if response.status_code != 201:
         raise RuntimeError(f"Review submission create failed {response.status_code}: {error_text(response)}")
     submission_id = body["data"]["id"]
-    for _ in range(3):
+    item_ok = False
+    for _ in range(20):
         response = api("POST", "/reviewSubmissionItems", json={"data": {"type": "reviewSubmissionItems", "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": submission_id}}, "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}}}}})
         if response.status_code == 201:
+            item_ok = True
             break
         print(f"Review item: {response.status_code} {error_text(response, 1200)}")
-        time.sleep(10)
+        time.sleep(30)
+    if not item_ok:
+        raise RuntimeError("Review submission item was not accepted")
     response, body = api_json("PATCH", f"/reviewSubmissions/{submission_id}", json={"data": {"type": "reviewSubmissions", "id": submission_id, "attributes": {"submitted": True}}})
     if response.status_code != 200:
         raise RuntimeError(f"Submit failed {response.status_code}: {error_text(response)}")
