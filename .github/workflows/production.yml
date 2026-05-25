@@ -62,6 +62,50 @@ jobs:
           security find-identity -v -p codesigning build.keychain
           rm cert.p12
 
+      - name: Install provisioning profile
+        env:
+          ASC_KEY_ID: WDXGY9WX55
+          ASC_ISSUER_ID: 2be0734f-943a-4d61-9dc9-5d9045c46fec
+          ASC_P8_PATH: /tmp/asc_key.p8
+          PROFILE_NAME: PuchiPuchi AppStore
+        run: |
+          . .venv/bin/activate
+          python - <<'PY'
+          import base64
+          import os
+          import time
+          from pathlib import Path
+          import jwt
+          import requests
+
+          key_id = os.environ['ASC_KEY_ID']
+          issuer = os.environ['ASC_ISSUER_ID']
+          p8 = Path(os.environ['ASC_P8_PATH']).read_text()
+          profile_name = os.environ['PROFILE_NAME']
+
+          def token():
+              now = int(time.time())
+              return jwt.encode({'iss': issuer, 'iat': now, 'exp': now + 1200, 'aud': 'appstoreconnect-v1'}, p8, algorithm='ES256', headers={'kid': key_id})
+
+          response = requests.get(
+              'https://api.appstoreconnect.apple.com/v1/profiles',
+              headers={'Authorization': 'Bearer ' + token()},
+              params={'filter[name]': profile_name, 'limit': '1'},
+              timeout=60,
+          )
+          response.raise_for_status()
+          data = response.json().get('data', [])
+          if not data:
+              raise SystemExit(f'Profile not found: {profile_name}')
+          profile = data[0]
+          content = base64.b64decode(profile['attributes']['profileContent'])
+          out_dir = Path.home() / 'Library' / 'MobileDevice' / 'Provisioning Profiles'
+          out_dir.mkdir(parents=True, exist_ok=True)
+          out_path = out_dir / f"{profile['id']}.mobileprovision"
+          out_path.write_bytes(content)
+          print(f'Installed {profile_name} -> {out_path}')
+          PY
+
       - name: Generate Xcode project
         run: xcodegen generate
 
@@ -73,7 +117,7 @@ jobs:
 
       - name: Archive
         run: |
-          xcodebuild archive             -project PuchiPuchi.xcodeproj             -scheme PuchiPuchi             -configuration Release             -destination "generic/platform=iOS"             -archivePath build/PuchiPuchi.xcarchive             CODE_SIGN_STYLE=Automatic             CODE_SIGN_IDENTITY="Apple Distribution"             DEVELOPMENT_TEAM=83VGKGSQUH             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"             GAD_APPLICATION_IDENTIFIER="ca-app-pub-9404799280370656~7583950897"             GAD_BANNER_AD_UNIT_ID="ca-app-pub-9404799280370656/6985185095"             -allowProvisioningUpdates             -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8"             -authenticationKeyID WDXGY9WX55             -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
+          xcodebuild archive             -project PuchiPuchi.xcodeproj             -scheme PuchiPuchi             -configuration Release             -destination "generic/platform=iOS"             -archivePath build/PuchiPuchi.xcarchive             CODE_SIGN_STYLE=Manual             CODE_SIGN_IDENTITY="Apple Distribution"             DEVELOPMENT_TEAM=83VGKGSQUH             PROVISIONING_PROFILE_SPECIFIER="PuchiPuchi AppStore"             CURRENT_PROJECT_VERSION="$BUILD_NUMBER"             GAD_APPLICATION_IDENTIFIER="ca-app-pub-9404799280370656~7583950897"             GAD_BANNER_AD_UNIT_ID="ca-app-pub-9404799280370656/6985185095"             -allowProvisioningUpdates             -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8"             -authenticationKeyID WDXGY9WX55             -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
       - name: Export IPA
         run: |
