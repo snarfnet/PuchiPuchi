@@ -13,6 +13,7 @@ APP_VERSION = os.environ.get("APP_VERSION", "1.0")
 BUILD_NUMBER = os.environ["BUILD_NUMBER"]
 P8_PATH = os.environ.get("ASC_P8_PATH", "/tmp/asc_key.p8")
 SCREENSHOT_DIR = "MarketingAssets/Screenshots"
+PRIVACY_URL = "https://snarfnet.github.io/app-support/"
 REVIEW_CONTACT = {
     "contactFirstName": "Tokyo",
     "contactLastName": "Nasu",
@@ -181,6 +182,9 @@ def wait_for_build(app_id):
 
 def ensure_app_info(app_id):
     meta = app_meta()
+    response = api("PATCH", f"/apps/{app_id}", json={"data": {"type": "apps", "id": app_id, "attributes": {"contentRightsDeclaration": "DOES_NOT_USE_THIRD_PARTY_CONTENT"}}})
+    print(f"Content rights: {response.status_code}")
+
     infos = list_all(f"/apps/{app_id}/appInfos?limit=10")
     if not infos:
         raise RuntimeError("appInfo not found")
@@ -193,9 +197,10 @@ def ensure_app_info(app_id):
     ja = next((loc for loc in locs if loc["attributes"].get("locale") == "ja"), None)
     payload = {"data": {"type": "appInfoLocalizations", "attributes": {"locale": "ja", "name": meta["name"]}, "relationships": {"appInfo": {"data": {"type": "appInfos", "id": app_info_id}}}}}
     if ja:
-        payload = {"data": {"type": "appInfoLocalizations", "id": ja["id"], "attributes": {"name": meta["name"]}}}
+        payload = {"data": {"type": "appInfoLocalizations", "id": ja["id"], "attributes": {"name": meta["name"], "privacyPolicyUrl": PRIVACY_URL}}}
         response = api("PATCH", f"/appInfoLocalizations/{ja['id']}", json=payload)
     else:
+        payload["data"]["attributes"]["privacyPolicyUrl"] = PRIVACY_URL
         response = api("POST", "/appInfoLocalizations", json=payload)
     print(f"App name: {response.status_code}")
     return app_info_id
