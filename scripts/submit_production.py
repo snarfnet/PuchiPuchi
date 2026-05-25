@@ -24,6 +24,31 @@ SCREENSHOT_GROUPS = [
     ("APP_IPHONE_65", "iphone65", 3),
     ("APP_IPHONE_55", "iphone55", 3),
 ]
+AGE_RATING_ATTRIBUTES = {
+    "alcoholTobaccoOrDrugUseOrReferences": "NONE",
+    "contests": "NONE",
+    "gambling": False,
+    "gamblingSimulated": "NONE",
+    "horrorOrFearThemes": "NONE",
+    "matureOrSuggestiveThemes": "NONE",
+    "medicalOrTreatmentInformation": "NONE",
+    "profanityOrCrudeHumor": "NONE",
+    "sexualContentGraphicAndNudity": "NONE",
+    "sexualContentOrNudity": "NONE",
+    "violenceCartoonOrFantasy": "NONE",
+    "violenceRealistic": "NONE",
+    "violenceRealisticProlongedGraphicOrSadistic": "NONE",
+    "gunsOrOtherWeapons": "NONE",
+    "ageRatingOverride": None,
+    "advertising": True,
+    "ageAssurance": False,
+    "healthOrWellnessTopics": False,
+    "lootBox": False,
+    "messagingAndChat": False,
+    "parentalControls": False,
+    "unrestrictedWebAccess": False,
+    "userGeneratedContent": False,
+}
 
 METADATA = json.loads(r'''
 {
@@ -99,6 +124,13 @@ def api_json(method, path, **kwargs):
         return response, {}
 
 
+def error_text(response, limit=3000):
+    try:
+        return json.dumps(response.json(), ensure_ascii=False)[:limit]
+    except Exception:
+        return response.text[:limit]
+
+
 def list_all(path):
     rows = []
     next_path = path
@@ -166,6 +198,24 @@ def ensure_app_info(app_id):
     else:
         response = api("POST", "/appInfoLocalizations", json=payload)
     print(f"App name: {response.status_code}")
+    return app_info_id
+
+
+def update_age_rating(app_info_id):
+    response, body = api_json("GET", f"/appInfos/{app_info_id}/ageRatingDeclaration")
+    if response.status_code != 200 or not body.get("data"):
+        print(f"Age rating lookup: {response.status_code} {error_text(response, 800)}")
+        return
+    rating_id = body["data"]["id"]
+    payload = {"data": {"type": "ageRatingDeclarations", "id": rating_id, "attributes": AGE_RATING_ATTRIBUTES}}
+    response = api("PATCH", f"/ageRatingDeclarations/{rating_id}", json=payload)
+    print(f"Age rating: {response.status_code}")
+
+
+def update_version_settings(version_id):
+    attrs = {"copyright": "2026 tokyonasu", "releaseType": "MANUAL"}
+    response = api("PATCH", f"/appStoreVersions/{version_id}", json={"data": {"type": "appStoreVersions", "id": version_id, "attributes": attrs}})
+    print(f"Version settings: {response.status_code}")
 
 
 def ensure_localization(version_id):
@@ -193,6 +243,8 @@ def update_metadata(version_id):
     }
     response = api("PATCH", f"/appStoreVersionLocalizations/{loc['id']}", json={"data": {"type": "appStoreVersionLocalizations", "id": loc["id"], "attributes": attrs}})
     print(f"Metadata: {response.status_code}")
+    if response.status_code >= 400:
+        print(error_text(response, 1200))
 
 
 def update_review_detail(version_id):
@@ -256,29 +308,56 @@ def assign_build(version_id, build_id):
 
 
 def submit_for_review(app_id, version_id):
-    response, body = api_json("POST", "/reviewSubmissions", json={"data": {"type": "reviewSubmissions", "attributes": {"platform": "IOS"}, "relationships": {"app": {"data": {"type": "apps", "id": app_id}}}}})
+    cancel_pending_review_submissions(app_id)
+    payload = {
+        "data": {
+            "type": "reviewSubmissions",
+            "attributes": {"platform": "IOS"},
+            "relationships": {
+                "app": {"data": {"type": "apps", "id": app_id}},
+                "appStoreVersionForReview": {"data": {"type": "appStoreVersions", "id": version_id}},
+            },
+        }
+    }
+    response, body = api_json("POST", "/reviewSubmissions", json=payload)
     if response.status_code != 201:
-        raise RuntimeError(f"Review submission create failed {response.status_code}: {response.text[:1200]}")
+        raise RuntimeError(f"Review submission create failed {response.status_code}: {error_text(response)}")
     submission_id = body["data"]["id"]
-    for _ in range(20):
+    for _ in range(3):
         response = api("POST", "/reviewSubmissionItems", json={"data": {"type": "reviewSubmissionItems", "relationships": {"reviewSubmission": {"data": {"type": "reviewSubmissions", "id": submission_id}}, "appStoreVersion": {"data": {"type": "appStoreVersions", "id": version_id}}}}})
         if response.status_code == 201:
             break
-        print(f"Review item wait: {response.status_code} {response.text[:400]}")
-        time.sleep(30)
+        print(f"Review item: {response.status_code} {error_text(response, 1200)}")
+        time.sleep(10)
     response, body = api_json("PATCH", f"/reviewSubmissions/{submission_id}", json={"data": {"type": "reviewSubmissions", "id": submission_id, "attributes": {"submitted": True}}})
     if response.status_code != 200:
-        raise RuntimeError(f"Submit failed {response.status_code}: {response.text[:1200]}")
+        raise RuntimeError(f"Submit failed {response.status_code}: {error_text(response)}")
     print(f"Submitted: {body['data']['attributes']['state']}")
+
+
+def cancel_pending_review_submissions(app_id):
+    response, body = api_json("GET", f"/apps/{app_id}/reviewSubmissions?limit=50")
+    if response.status_code != 200:
+        print(f"Review submission lookup: {response.status_code} {error_text(response, 800)}")
+        return
+    for submission in body.get("data", []):
+        state = submission.get("attributes", {}).get("state")
+        if state not in ("READY_FOR_REVIEW", "WAITING_FOR_REVIEW"):
+            continue
+        submission_id = submission["id"]
+        response = api("PATCH", f"/reviewSubmissions/{submission_id}", json={"data": {"type": "reviewSubmissions", "id": submission_id, "attributes": {"canceled": True}}})
+        print(f"Cancel review submission {submission_id}: {response.status_code}")
 
 
 def main():
     app_id = find_app_id()
-    ensure_app_info(app_id)
+    app_info_id = ensure_app_info(app_id)
+    update_age_rating(app_info_id)
     version_id, state = find_or_create_version(app_id)
     if state in ("WAITING_FOR_REVIEW", "IN_REVIEW"):
         print(f"Already submitted: {state}")
         return
+    update_version_settings(version_id)
     update_metadata(version_id)
     update_review_detail(version_id)
     upload_screenshots(version_id)
