@@ -1,7 +1,7 @@
 import SwiftUI
 
 struct ContentView: View {
-    @State private var popper = BubblePopper()
+    var popper: BubblePopper
 
     var body: some View {
         ZStack {
@@ -229,6 +229,19 @@ final class BubblePopper {
         poppedBubbles = []
     }
 
+    func screenshotMode() {
+        // Pre-pop 30 bubbles scattered across the grid for a natural look
+        let indicesToPop = [0, 1, 3, 5, 8, 10, 12, 15, 17, 19,
+                            21, 24, 26, 29, 31, 33, 36, 38, 40, 43,
+                            48, 51, 54, 57, 60, 63, 66, 72, 80, 90]
+        for idx in indicesToPop {
+            poppedBubbles.insert(idx)
+        }
+        sessionCount = 30
+        todayTotal = 247
+        isPopping = true
+    }
+
     func stop() {
         lastSessionCount = sessionCount
         todayTotal += sessionCount
@@ -282,5 +295,5 @@ final class BubblePopper {
 }
 
 #Preview {
-    ContentView()
+    ContentView(popper: BubblePopper())
 }
