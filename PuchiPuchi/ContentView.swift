@@ -13,6 +13,7 @@ struct ContentView: View {
                     sessionHeader
                     BubbleGridView(popper: popper)
                 }
+                .safeAreaPadding(.top)
             } else {
                 homeView
             }
