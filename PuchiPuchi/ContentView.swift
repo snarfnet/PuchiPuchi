@@ -41,6 +41,7 @@ struct ContentView: View {
                     // Bubble grid
                     BubbleGridView(popper: popper)
                 }
+                .safeAreaPadding(.top)
             } else {
                 // Home / Result
                 VStack(spacing: 24) {
