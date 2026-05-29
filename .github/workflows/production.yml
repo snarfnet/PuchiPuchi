@@ -44,23 +44,27 @@ jobs:
           fi
           cp "$HOME/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8" /tmp/asc_key.p8
 
-      - name: Import distribution certificate
+      - name: Create signing keychain
         env:
-          CERT_BASE64: ${{ secrets.DIST_CERT_BASE64 }}
-          CERT_PASSWORD: ${{ secrets.DIST_CERT_PASSWORD }}
           KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
         run: |
-          test -n "$CERT_BASE64"
           test -n "$KEYCHAIN_PASSWORD"
           security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security default-keychain -s build.keychain
           security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
           security set-keychain-settings -t 3600 -u build.keychain
-          echo "$CERT_BASE64" | base64 -D > cert.p12
-          security import cert.p12 -k build.keychain -P "$CERT_PASSWORD" -T /usr/bin/codesign ||             security import cert.p12 -k build.keychain -P "" -T /usr/bin/codesign
-          security set-key-partition-list -S apple-tool:,apple: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+      - name: Create distribution certificate
+        env:
+          ASC_KEY_ID: WDXGY9WX55
+          ASC_ISSUER_ID: 2be0734f-943a-4d61-9dc9-5d9045c46fec
+          ASC_P8_PATH: /tmp/asc_key.p8
+          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          BUILD_KEYCHAIN: build.keychain
+        run: |
+          . .venv/bin/activate
+          python scripts/create_distribution_certificate.py
           security find-identity -v -p codesigning build.keychain
-          rm cert.p12
 
       - name: Install provisioning profile
         env:
@@ -68,43 +72,11 @@ jobs:
           ASC_ISSUER_ID: 2be0734f-943a-4d61-9dc9-5d9045c46fec
           ASC_P8_PATH: /tmp/asc_key.p8
           PROFILE_NAME: PuchiPuchi AppStore
+          APP_BUNDLE_ID: com.tokyonasu.puchipuchi
+          IOS_DISTRIBUTION_CERT_SHA1: ${{ env.IOS_DISTRIBUTION_CERT_SHA1 }}
         run: |
           . .venv/bin/activate
-          python - <<'PY'
-          import base64
-          import os
-          import time
-          from pathlib import Path
-          import jwt
-          import requests
-
-          key_id = os.environ['ASC_KEY_ID']
-          issuer = os.environ['ASC_ISSUER_ID']
-          p8 = Path(os.environ['ASC_P8_PATH']).read_text()
-          profile_name = os.environ['PROFILE_NAME']
-
-          def token():
-              now = int(time.time())
-              return jwt.encode({'iss': issuer, 'iat': now, 'exp': now + 1200, 'aud': 'appstoreconnect-v1'}, p8, algorithm='ES256', headers={'kid': key_id})
-
-          response = requests.get(
-              'https://api.appstoreconnect.apple.com/v1/profiles',
-              headers={'Authorization': 'Bearer ' + token()},
-              params={'filter[name]': profile_name, 'limit': '1'},
-              timeout=60,
-          )
-          response.raise_for_status()
-          data = response.json().get('data', [])
-          if not data:
-              raise SystemExit(f'Profile not found: {profile_name}')
-          profile = data[0]
-          content = base64.b64decode(profile['attributes']['profileContent'])
-          out_dir = Path.home() / 'Library' / 'MobileDevice' / 'Provisioning Profiles'
-          out_dir.mkdir(parents=True, exist_ok=True)
-          out_path = out_dir / f"{profile['id']}.mobileprovision"
-          out_path.write_bytes(content)
-          print(f'Installed {profile_name} -> {out_path}')
-          PY
+          python scripts/prepare_profile.py
 
       - name: Generate Xcode project
         run: xcodegen generate
