@@ -1,124 +1,142 @@
+import Observation
 import SwiftUI
+import UIKit
 
 struct ContentView: View {
     var popper: BubblePopper
 
     var body: some View {
         ZStack {
-            Color(red: 0.95, green: 0.97, blue: 1.0)
-                .ignoresSafeArea()
+            LinearGradient(
+                colors: [
+                    Color(red: 0.94, green: 0.99, blue: 1.0),
+                    Color(red: 0.88, green: 0.97, blue: 0.96)
+                ],
+                startPoint: .topLeading,
+                endPoint: .bottomTrailing
+            )
+            .ignoresSafeArea()
 
             if popper.isPopping {
-                // Popping mode
-                VStack(spacing: 0) {
-                    // Header
-                    HStack {
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("プチプチ中...")
-                                .font(.headline)
-                                .foregroundStyle(.secondary)
-                            Text("\(popper.sessionCount) 個")
-                                .font(.system(size: 28, weight: .bold, design: .rounded))
-                                .foregroundStyle(.primary)
-                                .contentTransition(.numericText())
-                        }
-                        Spacer()
-                        Button {
-                            popper.stop()
-                        } label: {
-                            Text("やめる")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .padding(.horizontal, 20)
-                                .padding(.vertical, 10)
-                                .background(Capsule().fill(.pink))
-                        }
-                    }
-                    .padding(.horizontal, 20)
-                    .padding(.top, 12)
-                    .padding(.bottom, 8)
-
-                    // Bubble grid
-                    BubbleGridView(popper: popper)
-                }
-                .safeAreaPadding(.top)
+                poppingView
             } else {
-                // Home / Result
-                VStack(spacing: 24) {
-                    Spacer()
-
-                    // Bubble icon
-                    ZStack {
-                        ForEach(0..<6, id: \.self) { i in
-                            Circle()
-                                .fill(Color.mint.opacity(0.15))
-                                .frame(width: 60, height: 60)
-                                .offset(
-                                    x: cos(Double(i) * .pi / 3) * 50,
-                                    y: sin(Double(i) * .pi / 3) * 50
-                                )
-                        }
-                        Circle()
-                            .fill(Color.mint.opacity(0.2))
-                            .frame(width: 70, height: 70)
-                        Text("プチ")
-                            .font(.title2).bold()
-                            .foregroundStyle(.mint)
-                    }
-
-                    Text("プチプチ無限")
-                        .font(.system(size: 32, weight: .bold, design: .rounded))
-
-                    if popper.todayTotal > 0 {
-                        VStack(spacing: 8) {
-                            Text("今日つぶした数")
-                                .font(.subheadline)
-                                .foregroundStyle(.secondary)
-                            Text("\(popper.todayTotal)")
-                                .font(.system(size: 56, weight: .bold, design: .rounded))
-                                .foregroundStyle(.mint)
-                            Text("個")
-                                .font(.title3)
-                                .foregroundStyle(.secondary)
-                        }
-                        .padding(.vertical, 16)
-                    }
-
-                    if popper.lastSessionCount > 0 {
-                        Text("さっき \(popper.lastSessionCount) 個つぶした")
-                            .font(.subheadline)
-                            .foregroundStyle(.secondary)
-                    }
-
-                    Spacer()
-
-                    Button {
-                        popper.start()
-                    } label: {
-                        Text("つぶす")
-                            .font(.system(size: 24, weight: .bold, design: .rounded))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 18)
-                            .background(
-                                Capsule().fill(
-                                    LinearGradient(
-                                        colors: [.mint, .cyan],
-                                        startPoint: .leading, endPoint: .trailing
-                                    )
-                                )
-                            )
-                    }
-                    .padding(.horizontal, 40)
-                    .padding(.bottom, 40)
-                }
+                homeView
             }
         }
-        .animation(.easeInOut(duration: 0.3), value: popper.isPopping)
+        .animation(.easeInOut(duration: 0.25), value: popper.isPopping)
+    }
+
+    private var poppingView: some View {
+        VStack(spacing: 0) {
+            HStack {
+                VStack(alignment: .leading, spacing: 4) {
+                    Text("プチプチ中...")
+                        .font(.headline)
+                        .foregroundStyle(.secondary)
+                    Text("\(popper.sessionCount) 個")
+                        .font(.system(size: 30, weight: .bold, design: .rounded))
+                        .foregroundStyle(.primary)
+                        .contentTransition(.numericText())
+                }
+                Spacer()
+                Button {
+                    popper.stop()
+                } label: {
+                    Text("やめる")
+                        .font(.headline)
+                        .foregroundStyle(.white)
+                        .padding(.horizontal, 20)
+                        .padding(.vertical, 10)
+                        .background(Capsule().fill(.pink))
+                }
+            }
+            .padding(.horizontal, 20)
+            .padding(.top, 12)
+            .padding(.bottom, 8)
+
+            BubbleGridView(popper: popper)
+        }
+        .safeAreaPadding(.top)
+    }
+
+    private var homeView: some View {
+        VStack(spacing: 24) {
+            Spacer()
+
+            ZStack {
+                ForEach(0..<6, id: \.self) { i in
+                    Circle()
+                        .fill(Color.mint.opacity(0.16))
+                        .frame(width: 64, height: 64)
+                        .offset(
+                            x: cos(Double(i) * .pi / 3) * 52,
+                            y: sin(Double(i) * .pi / 3) * 52
+                        )
+                }
+                Circle()
+                    .fill(Color.mint.opacity(0.24))
+                    .frame(width: 76, height: 76)
+                Text("プチ")
+                    .font(.title2.bold())
+                    .foregroundStyle(.mint)
+            }
+            .frame(height: 170)
+
+            Text("プチプチ無限")
+                .font(.system(size: 34, weight: .bold, design: .rounded))
+
+            VStack(spacing: 10) {
+                Text("今日つぶした数")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                Text("\(popper.todayTotal)")
+                    .font(.system(size: 58, weight: .bold, design: .rounded))
+                    .foregroundStyle(.mint)
+                Text("個")
+                    .font(.title3)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.vertical, 18)
+            .frame(maxWidth: 260)
+            .background(.white.opacity(0.72), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+
+            if popper.lastSessionCount > 0 {
+                Text("さっき \(popper.lastSessionCount) 個つぶした")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+            }
+
+            Text("画面いっぱいのプチプチを、好きなだけつぶせます。")
+                .font(.subheadline)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 36)
+
+            Spacer()
+
+            Button {
+                popper.start()
+            } label: {
+                Text("つぶす")
+                    .font(.system(size: 24, weight: .bold, design: .rounded))
+                    .foregroundStyle(.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 18)
+                    .background(
+                        Capsule().fill(
+                            LinearGradient(
+                                colors: [.mint, .cyan],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                    )
+            }
+            .padding(.horizontal, 40)
+            .padding(.bottom, 40)
+        }
     }
 }
-
-// MARK: - Bubble Grid
 
 struct BubbleGridView: View {
     let popper: BubblePopper
@@ -133,7 +151,6 @@ struct BubbleGridView: View {
             let bubbleW = (geo.size.width - totalSpacingW) / CGFloat(columns)
             let bubbleH = (geo.size.height - totalSpacingH) / CGFloat(rows)
             let bubbleSize = min(bubbleW, bubbleH)
-
             let gridW = CGFloat(columns) * bubbleSize + CGFloat(columns + 1) * spacing
             let offsetX = (geo.size.width - gridW) / 2
 
@@ -166,18 +183,21 @@ struct BubbleView: View {
     var body: some View {
         ZStack {
             if isPopped {
-                // Popped state
                 Circle()
                     .fill(Color(red: 0.88, green: 0.90, blue: 0.92))
                     .frame(width: size * 0.85, height: size * 0.85)
+                    .overlay(
+                        Circle()
+                            .stroke(.white.opacity(0.5), lineWidth: 1)
+                            .frame(width: size * 0.55, height: size * 0.55)
+                    )
             } else {
-                // Unpopped bubble
                 Circle()
                     .fill(
                         RadialGradient(
                             colors: [
-                                Color(red: 0.85, green: 0.95, blue: 1.0),
-                                Color(red: 0.7, green: 0.88, blue: 0.95)
+                                Color(red: 0.86, green: 0.97, blue: 1.0),
+                                Color(red: 0.67, green: 0.88, blue: 0.95)
                             ],
                             center: .init(x: 0.35, y: 0.35),
                             startRadius: 0,
@@ -187,14 +207,14 @@ struct BubbleView: View {
                     .frame(width: size * 0.9, height: size * 0.9)
                     .shadow(color: .black.opacity(0.1), radius: 2, x: 1, y: 2)
                     .overlay(
-                        // Highlight
                         Circle()
-                            .fill(.white.opacity(0.5))
+                            .fill(.white.opacity(0.56))
                             .frame(width: size * 0.25, height: size * 0.25)
                             .offset(x: -size * 0.15, y: -size * 0.15)
                     )
             }
         }
+        .contentShape(Circle())
         .onTapGesture {
             if !isPopped {
                 onPop()
@@ -203,15 +223,11 @@ struct BubbleView: View {
     }
 }
 
-// MARK: - Bubble Popper Model
-
-import Observation
-
 @Observable
 final class BubblePopper {
     private let todayKey = "puchi_today_total"
     private let dateKey = "puchi_date"
-    private let totalBubbles = 96 // 8x12
+    private let totalBubbles = 96
 
     var isPopping = false
     var sessionCount = 0
@@ -230,13 +246,12 @@ final class BubblePopper {
     }
 
     func screenshotMode() {
-        // Pre-pop 30 bubbles scattered across the grid for a natural look
-        let indicesToPop = [0, 1, 3, 5, 8, 10, 12, 15, 17, 19,
-                            21, 24, 26, 29, 31, 33, 36, 38, 40, 43,
-                            48, 51, 54, 57, 60, 63, 66, 72, 80, 90]
-        for idx in indicesToPop {
-            poppedBubbles.insert(idx)
-        }
+        let indicesToPop = [
+            0, 1, 3, 5, 8, 10, 12, 15, 17, 19,
+            21, 24, 26, 29, 31, 33, 36, 38, 40, 43,
+            48, 51, 54, 57, 60, 63, 66, 72, 80, 90
+        ]
+        poppedBubbles.formUnion(indicesToPop)
         sessionCount = 30
         todayTotal = 247
         isPopping = true
@@ -258,11 +273,9 @@ final class BubblePopper {
         poppedBubbles.insert(index)
         sessionCount += 1
 
-        // Haptic feedback
         let generator = UIImpactFeedbackGenerator(style: .light)
         generator.impactOccurred()
 
-        // Reset grid when all popped
         if poppedBubbles.count >= totalBubbles {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [self] in
                 poppedBubbles = []

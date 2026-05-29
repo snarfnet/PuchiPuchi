@@ -112,6 +112,9 @@ jobs:
       - name: Set build number
         run: |
           BUILD_NUMBER=$((GITHUB_RUN_NUMBER + 100))
+          if [ "$BUILD_NUMBER" -lt 112 ]; then
+            BUILD_NUMBER=112
+          fi
           echo "BUILD_NUMBER=$BUILD_NUMBER" >> "$GITHUB_ENV"
           echo "Using build number $BUILD_NUMBER"
 
