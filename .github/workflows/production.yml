@@ -98,19 +98,6 @@ jobs:
         run: |
           xcodebuild -exportArchive             -archivePath build/PuchiPuchi.xcarchive             -exportPath build/export             -exportOptionsPlist export_options.plist             -allowProvisioningUpdates             -authenticationKeyPath "$HOME/.appstoreconnect/private_keys/AuthKey_WDXGY9WX55.p8"             -authenticationKeyID WDXGY9WX55             -authenticationKeyIssuerID 2be0734f-943a-4d61-9dc9-5d9045c46fec
 
-      - name: Upload IPA artifact
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: PuchiPuchi-IPA
-          path: build/export/*.ipa
-
-      - name: Upload to App Store Connect
-        run: |
-          IPA_PATH="$(find build/export -name '*.ipa' -print -quit)"
-          test -n "$IPA_PATH"
-          xcrun altool --upload-app             --type ios             --file "$IPA_PATH"             --apiKey WDXGY9WX55             --apiIssuer 2be0734f-943a-4d61-9dc9-5d9045c46fec
-
       - name: Submit production review
         env:
           ASC_KEY_ID: WDXGY9WX55

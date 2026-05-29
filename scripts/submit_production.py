@@ -118,9 +118,37 @@ def open_submission_id(app_id):
         return None
     for submission in body.get("data", []):
         state = submission.get("attributes", {}).get("state")
-        if state in ("READY_FOR_REVIEW", "UNRESOLVED_ISSUES"):
+        if state == "READY_FOR_REVIEW":
             return submission["id"]
     return None
+
+
+def cancel_unresolved_submissions(app_id):
+    response, body = api_json("GET", f"/apps/{app_id}/reviewSubmissions?limit=20")
+    if response.status_code != 200:
+        return
+    for submission in body.get("data", []):
+        if submission.get("attributes", {}).get("state") != "UNRESOLVED_ISSUES":
+            continue
+        response = api(
+            "PATCH",
+            f"/reviewSubmissions/{submission['id']}",
+            json={
+                "data": {
+                    "type": "reviewSubmissions",
+                    "id": submission["id"],
+                    "attributes": {"canceled": True},
+                }
+            },
+        )
+        print(f"Cancel unresolved review submission {submission['id']}: {response.status_code}")
+        for attempt in range(1, 21):
+            response, body = api_json("GET", f"/reviewSubmissions/{submission['id']}")
+            state = body.get("data", {}).get("attributes", {}).get("state")
+            print(f"Waiting for cancellation... {attempt}/20 state={state}")
+            if state != "CANCELING":
+                break
+            time.sleep(15)
 
 
 def create_submission(app_id):
@@ -202,6 +230,7 @@ def main():
     assign_build(version_id, build_id)
     print("Waiting for App Store Connect to settle...")
     time.sleep(300)
+    cancel_unresolved_submissions(app_id)
     submission_id = create_submission(app_id)
     submission_id = add_review_item(submission_id, version_id)
     finish_submission(submission_id)
